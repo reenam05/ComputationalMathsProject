@@ -1,0 +1,543 @@
+---
+title: "DNA, fractals and code"
+author: "Reena Menezes"
+format: pdf
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+DNA encodes information through the sequence of nucleotides. There are
+four types of nucleotides in natural DNA, denoted by four letters:
+A,T,G,C. A DNA molecule has two complementary strands, that is, two
+sequences of letters. Each letter is paired with each complementary: A
+pairs with T, G pairs with C. In this project, we are going to explore
+how DNA encodes information.
+
+## Question 1
+
+DNA encodes amino acids in groups of three letters called *codons*. For
+the purpose of this project, it is not important what the amino acids
+are, we only need to know that we will represent each amino acid with a
+letter as well. For example, the codon "AGA" encodes the amino acid "R".
+We will represent both sequences of letters (DNA and amino acids) using
+`string` type variables.
+
+(a) The file `translation.csv` contains a table with two columns,
+    `codon` and `amino`. Read the file into a dataframe, using the
+    column `codon` as an index. Translate the sequence `TCAATGTCA`, that
+    is, obtain the corresponding sequence of aminos.
+
+```{python}
+import pandas as pd
+from functools import reduce
+import time
+from plotnine import geom_bar, ggplot, aes, labs, ggtitle, geom_line, geom_path, scale_color_gradient, geom_point
+from plotnine import scale_color_gradient, geom_point
+import numpy as np
+
+data = pd.read_csv("translation.csv")
+
+#convert the sequence in to a sequence of codons
+sequence = "TCAATGTCA"
+c1 = sequence[0:3] #TCA
+c2 = sequence[3:6] #ATG
+c3 = sequence[6:9] #TCA
+seq_arr = [c1,c2,c3]
+
+#returns one amino acid to the corresponding one codon
+def codon_to_amino(codon):
+    for i in range(data.shape[0]):
+        if codon == data.iloc[i,0]:
+            return data.iloc[i,1]
+
+#because we have a list of codons, we use a map to convert 
+#each codon into an amino acid
+aminos = list((map(codon_to_amino,seq_arr)))
+string_amino_one = reduce(lambda x, y: x + y, aminos)
+print("Answer Q1A:", string_amino_one)
+```
+
+(b) Write a function `translate(codon,translation,missing)` that
+    receives a codon (string of length three), a translation table, and
+    a character `missing` and returns the corresponding amino acid, or
+    `missing` if the codon is not in the table. Create a function
+    factory to fix the translation table and the `missing` character.
+    Use the function factory to create a translation function `f`, and
+    use it to translate the sequence `AUGGCAACACGAUCUCNC`, using `?` for
+    the `missing` character.
+
+```{python}
+#returns the corresponding amino acid
+def translate(codon,translation,missing):
+    for i in range(translation.shape[0]):
+        if codon == translation.iloc[i,0]:
+            return translation.iloc[i,1] ##returns corresponding amino acid
+    return missing # else returns missing
+
+#fixes translation and missing
+def translate_factory(translation, missing):
+    def f(codon):
+        amino = translate(codon, translation, missing)
+        return amino #returns all the amino acids
+    return f
+
+sequence = "AUGGCAACACGAUCUCNC"
+codon = ""
+seq_codon = []
+
+#used to convert the sequence into a sequence of codons
+for x in sequence:
+    ## to form a codon
+    codon = codon + x 
+
+    if len(codon) == 3:
+        seq_codon.append(codon) # to form a sequence of codons
+        codon = ""
+
+#fixing the translation table and missing value
+holding = translate_factory(data,"?")
+
+#using a map to convert each codon in the sequence into an amino acid
+seq_amino = list(map(holding,seq_codon))
+string_amino_two = reduce(lambda x, y: x + y, seq_amino)
+print("answer 1b:", string_amino_two)
+```
+
+(c) Write a function `DNA_translation(s,translation,missing)` that
+    receives a string with a DNA sequence, a translation table, and a
+    `missing` character, and returns the corresponding string of amino
+    acids. Read the file `DNAsample.txt` (it contains only one line,
+    with a DNA string), and translate it using the table in
+    `translation.csv` and `_` (underscore) as a `missing` character.
+    Print the first 50 amino acids.
+
+```{python}
+with open("DNAsample.txt", 'r') as file:
+    line_sequence = file.read()
+num = len(line_sequence)
+
+def DNA_translation(s,translation,missing):
+    codon = ""
+    seq_codon = []
+
+    #used to convert the sequence into a sequence of codons
+    for x in s:
+        ## to form a codon
+        codon = codon + x 
+
+        if len(codon) == 3:
+            seq_codon.append(codon) # to form a sequence of codons
+            codon = ""
+
+    holding = translate_factory(translation, missing)
+
+    seq_amino = list(map(holding,seq_codon))
+    string_amino_three = reduce(lambda x, y: x + y, seq_amino)
+    return string_amino_three
+    
+
+seq_translated = DNA_translation(line_sequence,data,"_")
+print("answer to Q1c:", seq_translated[:50])
+```
+
+(d) Plot a histogram of the DNA letters in `DNAsample.txt`. Plot a
+    histogram of the amino acids in its translation.
+
+```{python}
+##to make the plots
+list_sequence = list(line_sequence)
+df_DNA_letters = pd.DataFrame({'DNA letters': list_sequence})
+list_amino = list(seq_translated)
+df_amino = pd.DataFrame({'amino acid': list_amino})
+
+# plot for the DNA letters
+(
+  ggplot(df_DNA_letters, aes(x='DNA letters')) +
+  labs(x='DNA letters', y='frequency')+
+  ggtitle('plot to show frequency of each DNA letters')+
+  geom_bar()
+).show()
+
+(
+  ggplot(df_amino, aes(x='amino acid')) +
+  labs(x='amino acid translated', y='frequency')+
+  ggtitle('plot to show frequency of each amino acid')+
+  geom_bar()
+).show()
+```
+
+## Question 2
+
+We can assign a curve on the plane to a string of DNA by assigning a
+direction to each letter. For example, let's assume we start at the
+origin, and we assign the direction $(1,0)$ to A, and $(0,1)$ to $G$.
+Then the sequence $AAG$ corresponds to a curve $(1,0), (2,0), (2,1)$,
+that is, at each step we move in the direction corresponding to the
+current letter.
+
+(a) Write a function factory `fractal_factory(directions)` that receives
+    a list of length four, with vectors corresponding to the direction
+    for A, T, G and C, in this order, and returns a function
+    `fractalDNA(b)` that receives a DNA letter and returns the
+    corresponding direction vector. Assign the direction $(0,0)$ to any
+    other letter. Test it using the directions
+    `[ (1,0),(-1,0),(0,1),(0,-1) ]`, and print the direction vector of
+    `A`, `G` and `N`.
+
+```{python}
+def fractal_factory(directions): # function factory
+
+    def fractalDNA(b): 
+        #dictionary connecting the nucleotides with each direction
+        DNA_labels = {
+            "A": directions[0],
+            "T": directions[1],
+            "G": directions[2],
+            "C": directions[3]
+        }
+        #going through the dictionary to find which nucleotide b matches 
+        #with the ones in the dictionary.
+        #if it matches we return the corresponding directions
+        if list(DNA_labels.keys())[0] == b:
+            return DNA_labels[list(DNA_labels.keys())[0]]
+        elif list(DNA_labels.keys())[1] == b:
+            return DNA_labels[list(DNA_labels.keys())[1]]
+        elif list(DNA_labels.keys())[2] == b:
+            return DNA_labels[list(DNA_labels.keys())[2]]
+        elif list(DNA_labels.keys())[3] == b:
+            return DNA_labels[list(DNA_labels.keys())[3]]
+        else:
+            return(0,0) #if we cannot find the nucleotide, we return 
+                        ##the (0,0) co-ord
+
+  
+    return fractalDNA
+
+get_coord = fractal_factory([(1,0),(-1,0),(0,1),(0,-1)])
+print("Q2a answer:")
+print("direction vector for A:", get_coord('A'))
+print("direction vector for G:", get_coord('G'))
+print("direction vector for N:",get_coord('N'))
+```
+
+(b) Write a function `DNAcurve(dna,direction)` that receives a DNA
+    string and a set of directions, and returns a dataframe with two
+    columns `x` and `y`, and as many rows as the length of `dna`, with
+    the coordinates a point of the curve in each row. Read the file
+    `DNAsample.txt` and obtain the curve corresponding to the directions
+    `[ (1,0),(-1,0),(0,1),(0,-1) ]`. Print the first 10 coordinates of
+    the curve.
+
+```{python}
+def DNAcurve(dna,direction):
+
+    #using a map to find the coordinates for each nucleotide in the DNA string
+    store = fractal_factory(direction)
+    direction_arr = list(map(store,dna)) 
+    direction_np = np.array(direction_arr) # convert to numpy array
+    direction_cumsum = np.cumsum(direction_np, axis=0) # np.cumsum creates 
+    #the curve through cumulative addition
+
+    return direction_cumsum
+
+start2 = time.perf_counter()
+whole_curve = DNAcurve(line_sequence, [(1,0),(-1,0),(0,1),(0,-1)]) #A T G C
+print("First 10 coordinates of the curve:")
+print(*whole_curve[:10])
+```
+
+(c) Plot the curve generated in the previous section. Use colour to
+    represent the position along the DNA (that is, a continuous colour
+    scale from the first position to the last).
+
+```{python}
+curve_df = pd.DataFrame(whole_curve, columns=['x', 'y'])
+(
+  ggplot(curve_df, aes(x='x', y= 'y', color = 'x')) +
+  geom_path()
+  +scale_color_gradient(low="blue", high="red") #continuous colour scale from 
+  #the first position to the last
+).show()
+```
+
+## Question 3
+
+Given a discrete probability distribution, with $n$ possible outcomes
+with probabilities $(p_1,\ldots,p_n)$, $\sum_i p_i = 1$, we can compute
+its *self-information* as \begin{equation} 
+H(p) = \sum_{i=1}^n p_i \log_2(p_i).
+\end{equation}
+
+(a) Write a function `H(dna)` that computes the proportion $p_i$ for
+    each different letter in the string `dna`, and returns the
+    self-information of the DNA string `dna`. Compute the
+    self-information of `DNAsample.txt`.
+
+```{python}
+def H(dna):
+    length_DNA = len(dna)
+
+    #creating a specific number attached to the nucleotides
+    def nucleotide_to_num(x):
+        if x == 'A':
+            return 0
+        elif x == 'T':
+            return 1
+        elif x == 'G':
+            return 2
+        elif x =='C':
+            return 3
+        return 4
+    # each nucleotide in the DNA string is asociated with a particular number
+    num_array = list(map(nucleotide_to_num,dna))
+
+    #counting the frequency of each nucleotides
+    occurances = np.bincount(num_array)
+
+    #working out the probabilities of each nucleotides
+    def compute_probabilities(occurance):
+        return occurance/length_DNA
+    
+    probabilities_list = list(map(compute_probabilities,occurances))
+
+    #working out the self infomation of the DNA string
+    probabilities_np = np.array(probabilities_list)
+
+    def calculate_info(probability):
+        if probability == 0:
+            return 0
+        else:
+            return probability *np.log2(probability)
+        
+    vector_self_info = list(map(calculate_info,probabilities_np))
+    self_info = np.sum(vector_self_info)
+    return self_info
+
+print("answer to 3a, self infomation of DNA sample:",H(line_sequence))
+```
+
+(b) The information content will change from location to location along
+    the DNA string. Write a function `Hn(dna,n)` that for each position
+    $i$ in the `dna` string, takes the substring of length `2n+1`
+    centered at $i$, and computes its self-information. `Hn` should
+    return a dataframe with two columns, the position $i$ and the
+    self-information $H$ around that position. At the beginning and at
+    the end of the sequence, use a shorter subsequence if necessary.
+    Compute the self-information of `DNAsample.txt` with $n=100$, and
+    print the self-informations and positions $50, 12345$ and $31416$.
+
+```{python}
+def Hn(dna,n): 
+    access_i = function_factory_i(dna, n)
+    #index_arr = [5012345, 31416]
+    index_arr = list_indexes(dna)
+
+    #finds the bounds of the subsequence for the corresponding index
+    position_list = list(map(access_i,index_arr))
+    
+    #calculates self information for the corresponding subsequences 
+    def calc_info(positions):
+        sub_index = list(range(positions[0],positions[1]+1))
+        sub_seq = line_sequence[sub_index[0]:sub_index[-1]+1]
+        return H(sub_seq)
+    
+    self_info_list = list(map(calc_info,position_list))
+
+    #creates a dataframe with the positions and corresponding self information       #value
+    dict = {'position i': index_arr, 'self-information': self_info_list}
+    df = pd.DataFrame(dict)
+    return df
+
+def function_factory_i(dna, n):
+    def f(center):
+        #finds the bounds of the substring according to the current position of
+        #the string
+        lower_bound = center - n
+        higher_bound = center + n
+
+        #according to where the current position of the string (beginning or             #end), the length of the substring will be altered
+        if lower_bound < 0 or lower_bound > len(dna):
+            lower_bound = 0
+
+        if higher_bound > len(dna) or higher_bound < 0:
+            higher_bound = len(dna) - 1
+
+        if higher_bound - lower_bound == len(dna) - 1:
+            lower_bound = higher_bound = 0
+        
+        bounds = [lower_bound, higher_bound]
+        return bounds
+    return f
+
+def list_indexes(dna):
+    return [5012345, 31416]
+print("answer to Q3b:", Hn(line_sequence,100))
+```
+
+(c) Plot the self-information of `DNAsample.txt` as a function of the
+    position, using $n=500$.
+
+```{python}
+def list_indexes(dna):
+    return list(range(0,len(dna)))
+
+df_DNA_info = Hn(line_sequence,500)
+(
+    ggplot(df_DNA_info, aes(x='position i', y='self-information')) +
+    ggtitle('plot of self information of DNA sample using n = 500')+
+    geom_line()
+).show()
+
+```
+
+(d) Plot the curve from Question 2, colouring by self-information using
+    $n=500$. If you have not completed Question 2, you can load a sample
+    curve from the file \`sampleCurve.csv".
+
+```{python}
+(
+  ggplot(curve_df, aes(x='x', y= 'y', color = curve_df.iloc[:,1])) +
+  geom_path()+
+  ggtitle('curve, colored by self information when n = 500, from Q2')
+  +scale_color_gradient(low="blue", high="red") #continuous colour scale from 
+  #the first position to the last
+).show()
+
+```
+
+## Question 4
+
+The box-counting dimension is a way of defining the dimension of a
+fractal curve. We will implement it to estimate the fractal dimension of
+the curve constructed in Question 2. If you have not completed Question
+2, you can load a sample curve from the file `sampleCurve.csv`. In two
+dimensions, a box is a square with side `d`, and the box-counting
+dimension is defined in terms of the number of boxes needed to cover the
+curve.
+
+(a) Define a function `rescale(s,n)` that takes a curve `s` formatted as
+    in Question 2, scales it so the curve is contained in
+    $[-n,n]\times[-n,n]$, and returns a matrix of dimensions
+    $(2n+1)\times(2n+1)$ with 1's at the positions occupied by the
+    curve, and 0's elsewhere. Using the curve constructed in Question 2,
+    generate the matrix corresponding to n = 200, and print the sum of
+    all the elements in the matrix.
+
+```{python}
+def rescale(s,n):
+    #we want to find the biggest x or y value, as we will scale the curve
+    #accordingly this value
+    max_vals = []
+    max_vals.append(abs(np.max(s[:, 0])))
+    max_vals.append(abs(np.min(s[:, 0])))
+    max_vals.append(abs(np.max(s[:, 1])))
+    max_vals.append(abs(np.min(s[:, 1])))
+
+    maximum = max(max_vals)
+
+    def scale_to_n(coord, max,n):
+        scale_x = (coord[0]/max)*n
+        scale_y = (coord[1]/max)*n
+        return scale_x,scale_y
+
+    #scales each coordinate in the curve using a map
+    list_n = [n]*len(s)
+    list_max = [maximum]*len(s)
+    scaled_list = list(map(scale_to_n, s ,list_max,list_n))
+
+    #need to round the coordinates to integers and shift them to obtain the          #indices in the matrix
+    def form_scaled_curve(coord):
+        x = int(round(coord[0]))
+        y = int(round(coord[1]))
+        return np.array([x,y])
+    
+    coord_curve = list(map(form_scaled_curve,scaled_list))
+    unique_coord = np.unique(coord_curve, axis=0) #obtains all unique 
+    #coordinates   because it is faster to handle theses in the matrix rather        #than all coordinates which includes repeats.
+
+    #number elements as 1 to show position occupied by curve
+    def point_to_matrix(coord):
+        matrix = np.zeros((2*n+1,2*n+1),dtype=int)
+        matrix[coord[0] + n][coord[1] + n] = 1
+        return matrix
+    
+    #numbered only one element on one matrix to show a position occupied by curve
+    #added all matrices to show all positions occupied by curve
+    arr_matrix = list(map(point_to_matrix,unique_coord))
+    curve_matrix = np.sum(arr_matrix, axis=0)
+    total = np.sum(curve_matrix)
+    print("answer Q4a:",total)
+
+    return curve_matrix
+
+curve_in_matrix = rescale(whole_curve,200)
+```
+
+(b) Define a function `boxCount(M,d)` that takes a curve (in matrix
+    format) and a box size `d`, and returns the number of boxes in a
+    regular covering (starting with a box in the top-left corner of the
+    matrix) that are not empty (i.e. contain only zeros) and not full
+    (i.e. contain only ones). Note that a good implementation requires
+    using `reduce`. Compute the number of boxes for the curve generated
+    in Question 2 (or use `sampleCurve.csv`), with $n=200$ and $d = 20$.
+
+```{python}
+def boxCount(M,d):
+    #worked out the coordinates for each box
+    sequence = list(range(0, M.shape[0], d))
+    arr = []
+    for x in sequence:
+        for y in sequence:
+            arr.append([x,y])
+
+    def count_box(x,y):
+        smaller_m = M[x:x+d,y:y+d] #worked out the corresponding box according to         #the coordinates
+
+        # found boxes that are not empty and not full
+        if np.any(smaller_m == 0) and np.any(smaller_m == 1):
+            return 1
+        return 0
+    
+    #for each box, using their coordinates, used reduced and a lambda function 
+    #to work out if the boxes where empty or not
+    arr_np = np.array(arr)
+    x_col = arr_np[:,0]
+    y_col = arr_np[:,1]
+    total_boxes = reduce(lambda count, coord: count + \
+                         count_box(coord[0],coord[1]),zip(x_col,y_col),0 )
+    return total_boxes
+
+print("answer to Q4b, number of boxes:",boxCount(curve_in_matrix,20))
+```
+
+(c) Plot the logarithm of the number of boxes computed by `boxCount` vs
+    $k$, for box sizes $2^k$, $k=1,\ldots,8$.\
+
+```{python}
+# worked out the number of boxes for each k
+arr_k = [1,2,3,4,5,6,7,8]
+arr_two_k = [2,4,8,16,32,64,128,256]
+arr_curve = [curve_in_matrix] * 8
+arr_num_boxes = list(map(boxCount,arr_curve,arr_two_k))
+#find the logs of the number of boxes
+arr_log = np.log(arr_num_boxes)
+
+#plotting the number of boxes computed boxCount vs k
+plot = np.vstack((arr_k, arr_log))
+plot_coord = plot.T
+df = pd.DataFrame(plot_coord, columns=['x','y'])
+(
+  ggplot(df, aes(x='x', y= 'y')) +
+  geom_line()
+).show()
+```
+
+(d) Write a function `find_a(X,Y)` that applies gradient descent to find
+    the values $a,b$ that minimise $(1/2)\sum_i (a x_i + b - y_i)^2$,
+    using $(0,0)$ as the starting point of the algorithm. The function
+    should return $a$ only. The approximate box-counting dimension of a
+    curve is the coefficient $a$ of the line of best fit for the log box
+    counts vs the log box sizes. Compute the box-counting dimension of
+    the curve in Question 2 (or use `sampleCurve.csv`), using $n=200$,
+    and box sizes $2^k$, $k=1,\ldots,8$.
